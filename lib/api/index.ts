@@ -925,15 +925,6 @@ function conflictError(message: string): ApiConflictError {
   return error;
 }
 
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
-  try {
-    const payload = await res.json();
-    return payload?.message ?? payload?.error ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export async function updateKeySupplyCap(
   keyId: string,
   supplyCap: number,
