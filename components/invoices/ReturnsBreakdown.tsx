@@ -17,6 +17,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchInvoiceReturns, type InvoiceReturnRow } from "@/lib/api";
+import { proRataFloorShare } from "@/lib/returns";
 import { useAuth } from "@/hooks/useAuth";
 
 interface ReturnsBreakdownProps {
@@ -26,15 +27,11 @@ interface ReturnsBreakdownProps {
 /**
  * Floor-division pro-rata share, mirroring the backend calculation:
  * each investor receives floor(principal / totalPrincipal * totalReturn).
+ *
+ * The implementation is shared with the early repayment banner (see
+ * `lib/returns.ts`) so the two surfaces can never disagree.
  */
-export function computeProRataFloorShare(
-  principal: number,
-  totalPrincipal: number,
-  totalReturn: number
-): number {
-  if (totalPrincipal <= 0) return 0;
-  return Math.floor((principal / totalPrincipal) * totalReturn);
-}
+export const computeProRataFloorShare = proRataFloorShare;
 
 export function ReturnsBreakdown({ invoiceId }: { invoiceId: string }) {
   const { address } = useAuth();

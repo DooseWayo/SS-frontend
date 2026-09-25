@@ -16,6 +16,7 @@ import { InvoiceMetaTags } from "@/components/invoices/InvoiceMetaTags";
 import { InvoiceBackButton } from "@/components/invoices/InvoiceBackButton";
 import { InvestmentModal } from "@/components/invoices/InvestmentModal";
 import { ReturnsBreakdown } from "@/components/invoices/ReturnsBreakdown";
+import { EarlyRepaymentBanner } from "@/components/invoices/EarlyRepaymentBanner";
 import { recordView } from "@/lib/recentlyViewed";
 import { useProtocolStatus } from "@/hooks/useProtocolStatus";
 
@@ -140,6 +141,16 @@ export function InvoiceDetail({ invoiceId }: InvoiceDetailProps) {
         status={invoice.status}
         amount={invoice.amount}
         invoiceId={invoice.id}
+      />
+
+      {/* Early repayment notice — self-gating: renders nothing unless the
+          invoice currently has an active early repayment. */}
+      <EarlyRepaymentBanner
+        invoiceId={invoice.id}
+        earlyRepayment={invoice.early_repayment}
+        investors={invoice.investors}
+        raised={invoice.raised}
+        yieldPercentage={invoice.yield_percentage}
       />
 
       <Card>
