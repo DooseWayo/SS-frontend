@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   fetchNotifications,
@@ -12,6 +12,38 @@ import {
 
 export const NOTIFICATIONS_QUERY_KEY = ["notifications"] as const;
 export const UNREAD_COUNT_QUERY_KEY = ["notifications", "unread-count"] as const;
+
+/**
+ * Nudges the cached unread count by `delta` without a round trip, clamped at
+ * zero. Accepts either cached shape (`{count}` or a bare number) so it works
+ * regardless of which shape populated the cache.
+ *
+ * A no-op when nothing has been cached yet — inventing a count out of nothing
+ * would be a lie, and the invalidate that follows fetches the real one.
+ *
+ * Returns the previous value so callers can roll back, or `undefined` when
+ * there was nothing cached.
+ */
+export function bumpUnreadCount(
+  queryClient: QueryClient,
+  delta: number
+): { count: number } | number | undefined {
+  const previous = queryClient.getQueryData<{ count: number } | number>(
+    UNREAD_COUNT_QUERY_KEY
+  );
+  if (previous === undefined) return undefined;
+
+  queryClient.setQueryData(UNREAD_COUNT_QUERY_KEY, (old: unknown) => {
+    if (typeof old === "number") return Math.max(0, old + delta);
+    if (old && typeof old === "object" && "count" in old) {
+      const record = old as { count: number };
+      return { ...record, count: Math.max(0, record.count + delta) };
+    }
+    return old;
+  });
+
+  return previous;
+}
 
 export function useNotifications(
   options: {
