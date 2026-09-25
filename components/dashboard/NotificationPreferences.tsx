@@ -13,6 +13,7 @@ const EVENT_LABELS: Record<NotificationEventType, string> = {
   new_invoice: "New invoice",
   funding_milestone: "Funding milestone",
   settlement: "Settlement",
+  early_repayment: "Early repayment",
 };
 
 function NotificationPreferencesSkeleton() {

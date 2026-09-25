@@ -17,6 +17,88 @@ export interface InvoiceDetail extends Invoice {
   description: string;
   investors: { address: string; amount: number; timestamp: string }[];
   document_url: string;
+  /**
+   * Present once a seller has initiated an early repayment. `null` means the
+   * invoice was never offered for early repayment (the common case).
+   */
+  early_repayment?: EarlyRepayment | null;
+}
+
+/* ─── Early repayment ──────────────────────────────────────────────────────
+ *
+ * A seller may repay a funded invoice before its maturity date. The backend
+ * owns every figure in this record; the frontend only normalises and renders
+ * it, so that a seller-side trigger surfaces on the investor's invoice detail
+ * within one poll interval.
+ */
+
+/** `none` is represented as `null` on the wire — see normalizeEarlyRepayment. */
+export type EarlyRepaymentStatus =
+  | "pending"
+  | "active"
+  | "settled"
+  | "cancelled";
+
+export interface EarlyRepayment {
+  invoice_id: string;
+  status: EarlyRepaymentStatus;
+  /** Total the seller repays across every investor, in XLM. */
+  repayment_amount: number;
+  /** ISO timestamp the invoice would otherwise have matured. */
+  original_maturity_date: string;
+  /** ISO timestamp the early repayment settles. */
+  settlement_date: string;
+  /** ISO timestamp the invoice was funded — the start of the full term. */
+  issued_at?: string;
+  /** Total credited to investors under the early repayment terms, in XLM. */
+  investor_return_amount?: number;
+  initiated_by?: string;
+  initiated_at?: string;
+}
+
+/** Parses a number that may arrive as a string, returning undefined if it is
+ * absent or not a finite number. */
+function toFiniteNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
+}
+
+/**
+ * Early repayment payloads differ between backend deployments, so the record
+ * is normalised once at the API boundary and the rest of the app can trust it.
+ * Returns `null` for "never initiated", which is how the UI decides whether
+ * the banner applies at all.
+ */
+export function normalizeEarlyRepayment(
+  raw: unknown,
+  invoiceId: string
+): EarlyRepayment | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  const record = raw as Record<string, unknown>;
+  const status = (record.status ?? record.state ?? "none") as string;
+  if (!status || status === "none") return null;
+
+  return {
+    invoice_id: (record.invoice_id as string) ?? (record.invoiceId as string) ?? invoiceId,
+    status: status as EarlyRepaymentStatus,
+    repayment_amount: toFiniteNumber(record.repayment_amount ?? record.amount) ?? 0,
+    original_maturity_date:
+      (record.original_maturity_date as string) ??
+      (record.originalMaturityDate as string) ??
+      "",
+    settlement_date:
+      (record.settlement_date as string) ?? (record.settlementDate as string) ?? "",
+    issued_at: (record.issued_at as string) ?? (record.issuedAt as string) ?? undefined,
+    investor_return_amount: toFiniteNumber(
+      record.investor_return_amount ?? record.investorReturnAmount
+    ),
+    initiated_by:
+      (record.initiated_by as string) ?? (record.initiatedBy as string) ?? undefined,
+    initiated_at:
+      (record.initiated_at as string) ?? (record.initiatedAt as string) ?? undefined,
+  };
 }
 
 export interface InvoicesResponse {
@@ -77,7 +159,11 @@ export async function fetchInvoices(
 export async function fetchInvoiceDetail(id: string): Promise<InvoiceDetail> {
   const res = await fetch(`${API_BASE}/invoices/${id}`);
   if (!res.ok) throw new Error("Failed to fetch invoice detail");
-  return res.json();
+  const data: InvoiceDetail = await res.json();
+  return {
+    ...data,
+    early_repayment: normalizeEarlyRepayment(data.early_repayment, id),
+  };
 }
 
 /** Protocol-wide status, including the minimum investment floor the contract
@@ -127,7 +213,11 @@ export async function transferInvoicePosition(
   return res.json();
 }
 
-export type NotificationEventType = "new_invoice" | "funding_milestone" | "settlement";
+export type NotificationEventType =
+  | "new_invoice"
+  | "funding_milestone"
+  | "settlement"
+  | "early_repayment";
 export type NotificationChannel = "email" | "in_app";
 
 export interface NotificationPreference {
